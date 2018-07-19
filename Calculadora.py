@@ -2,6 +2,13 @@
 from Tkinter import*
 import math
 
+def conv(num,b):
+    convStr = "0123456789abcdefghijklmnopqrstuvwxyz"
+    if num<b:
+        return convStr[num]
+    else:
+        return conv(num//b,b) + convStr[num%b]
+
 class Mercado():
     def __init__(self, raiz):
         
@@ -29,8 +36,8 @@ class Mercado():
         self.botao_subtracao = Botao(raiz, "/", 4, 6, self.Divisao)
         self.botao_igual = Botao(raiz, "=", 5, 6, self.Igual)
         
-        self.botao_raiz_quadrada = Botao(raiz, "raiz()", 2, 5, self.Raiz_Quadrada)
-        self.botao_raiz_quadrada = Botao(raiz, "c", 2, 6, self.C)
+        self.botao_raiz_quadrada = Botao(raiz, "Sqr()", 2, 5, self.Raiz_Quadrada)
+        self.botao_raiz_quadrada = Botao(raiz, "CA", 2, 6, self.C)
         self.botao_raiz_quadrada = Botao(raiz, "sen()", 3, 1, self.Seno)
         self.botao_raiz_quadrada = Botao(raiz, "cos()", 4, 1, self.Cosseno)
         self.botao_raiz_quadrada = Botao(raiz, "tg()", 5, 1, self.Tangente)
@@ -45,6 +52,7 @@ class Mercado():
         caixa_texto = Texto(raiz, self.a)        
 
     def Raiz_Quadrada(self):
+        #temporario = conv(int(self.a),2)
         temporario = math.sqrt(float(self.a))
         self.a = str(temporario)
         caixa_texto = Texto(raiz, self.a)
@@ -148,7 +156,7 @@ class Celula():
 
 class Texto():
     def __init__(self, raiz, texto):
-        self.texto = Label(raiz, text =round (float(texto), 5), font = ("Arial", "72", "bold"))
+        self.texto = Label(raiz, text =round (float(texto), 5), font = ("Arial", "40", "bold"))
         self.texto["height"] = 2 
         self.texto["width"] = 2
         self.texto.grid(row=1, column=1, columnspan=6,sticky=W+E+N+S)
