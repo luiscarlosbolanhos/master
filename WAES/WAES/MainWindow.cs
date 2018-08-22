@@ -1,0 +1,305 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using WAES.Helpers;
+using System.Threading;
+
+namespace WAES
+{
+    public partial class MainWindow : Form
+    {
+        public MainWindow()
+        {
+            InitializeComponent();
+            this.SetLogViewer(txtLog);
+        }
+
+        public MainWindow(string[] args)
+        {
+            InitializeComponent();
+            this.SetLogViewer(txtLog);
+
+            foreach (var path in args)
+            {
+                if (File.Exists(path) || Directory.Exists(path))
+                    lstPaths.Items.Add(path);
+            }
+
+        }
+
+        private void MainWindow_Load(object sender, EventArgs e)
+        {
+            lstExts.SelectedIndex = 6;
+
+        }
+
+        private void btnAddFile_Click(object sender, EventArgs e)
+        {
+            using (var fileDialog = new OpenFileDialog())
+            {
+                fileDialog.Title = "Select your File(s)";
+                fileDialog.CheckFileExists = true;
+                fileDialog.CheckPathExists = true;
+                fileDialog.Multiselect = true;
+                fileDialog.SupportMultiDottedExtensions = true;
+                fileDialog.InitialDirectory = Application.StartupPath;
+
+                if (fileDialog.ShowDialog() == DialogResult.OK)
+                {
+                    var files = fileDialog.FileNames;
+
+                    if (files != null && files.Length > 0)
+                    {
+                        foreach (var filePath in files)
+                        {
+                            var items = lstPaths.Items;
+                            if (!items.Contains(filePath))
+                                lstPaths.Items.Add(filePath);
+                            else
+                                this.Log(filePath + " is already exist in the list.");
+                        }
+                    }
+                }
+            }
+        }
+
+        private void btnRemovePath_Click(object sender, EventArgs e)
+        {
+            var selectedIndex = lstPaths.SelectedIndex;
+            if (selectedIndex != -1)
+            {
+                lstPaths.Items.RemoveAt(selectedIndex);
+
+                lstPaths.SelectedIndex = selectedIndex < lstPaths.Items.Count ? selectedIndex : selectedIndex - 1;
+                lstPaths.Focus();
+            }
+        }
+
+        private void btnAddFolder_Click(object sender, EventArgs e)
+        {
+            using (var folderDialog = new FolderBrowserDialog())
+            {
+                folderDialog.Description = "Select A Folder";
+                folderDialog.ShowNewFolderButton = true;
+                folderDialog.RootFolder = Environment.SpecialFolder.MyComputer;
+                if (folderDialog.ShowDialog() == DialogResult.OK)
+                {
+                    var folderPath = folderDialog.SelectedPath;
+                    if (!String.IsNullOrEmpty(folderPath))
+                    {
+                        var items = lstPaths.Items;
+                        if (!items.Contains(folderPath))
+                            lstPaths.Items.Add(folderPath);
+                        else
+                            this.Log(folderPath + " is already exist in the list.");
+                    }
+                }
+
+
+            }
+        }
+
+        private async void btnEncrypt_Click(object sender, EventArgs e)
+        {
+            var count = 0;
+            var paths = lstPaths.Items;
+            
+            this.Log("Encryption Started.");
+
+            if (paths != null && paths.Count > 0)
+            {
+                foreach (string path in paths)
+                {
+
+                    if (File.Exists(path)) // Is File 
+                    {
+                        if (path.CheckExtension(lstExts.Text.ParseExtensions()))
+                        {
+							if (!path.EndsWith(".aes"))
+                                {
+									try
+									{
+										this.Log("Encrypting: " + path );
+										await path.EncryptFileAsync(txtPassword.Text);
+										this.Log("Encrypted: " + path + ".aes" );
+										count++;
+
+										if (chkDeleteOrg.Checked)
+											File.Delete(path);
+									}
+									catch (Exception ex)
+									{
+
+										this.Log(path + " " + ex.Message);
+									}
+								}
+								else
+                                {
+                                    this.Log(path + " Ignored.");
+                                }
+
+                        }
+                    }
+                    if (Directory.Exists(path)) // Is Folder
+                    {
+                        var followSubDirs = chkSubFolders.Checked ? true : false;
+
+                        var allfiles = path.GetFolderFilesPaths(followSubDirs);
+
+                        foreach (var file in allfiles)
+                        {
+                            if (file.CheckExtension(lstExts.Text.ParseExtensions()))
+                            {
+                                if (!file.EndsWith(".aes"))
+                                {
+                                    try
+                                    {
+										this.Log("Encrypting: " + file);
+                                        await file.EncryptFileAsync(txtPassword.Text);
+                                        this.Log("Encrypted: " + file + ".aes" );
+                                        count++;
+
+                                        if (chkDeleteOrg.Checked)
+                                            File.Delete(file);
+                                    }
+                                    catch (Exception ex)
+                                    {
+
+                                        this.Log(file + " " + ex.Message);
+                                    }
+                                }
+                                else
+                                {
+                                    this.Log(file + " Ignored.");
+                                    count--;
+                                }
+                            }
+                        }
+
+
+                    }
+
+
+                }
+            }
+
+
+
+            this.Log($"Finished : {count} File(s) Encrypted.");
+
+
+        }
+
+        private async void btnDecrypt_Click(object sender, EventArgs e)
+        {
+            var count = 0;
+            var paths = lstPaths.Items;
+
+            this.Log("Decryption Started.");
+
+            if (paths.Count > 0)
+            {
+                foreach (string path in paths)
+                {
+
+                    if (File.Exists(path) && path.EndsWith(".aes")) // Is Encrypted File 
+                    {
+                        try
+                        {
+                            this.Log("Decrypting: " + path);
+                            await path.DecryptFileAsync(txtPassword.Text);
+                            this.Log("Decrypted:" + path);
+                            count++;
+
+                            if (chkDeleteOrg.Checked)
+                                File.Delete(path);
+                        }
+                        catch (Exception ex)
+                        {
+                            this.Log(path + " " + ex.Message);
+                            if (File.Exists(path.RemoveExtension()))
+                                File.Delete(path.RemoveExtension());
+                        }
+
+
+                    }
+                    if (Directory.Exists(path)) // Is Folder
+                    {
+                        var followSubDirs = chkSubFolders.Checked ? true : false;
+
+                        var allfiles = path.GetFolderFilesPaths(followSubDirs);
+
+                        foreach (var file in allfiles)
+                        {
+                            if (file.RemoveExtension().CheckExtension(lstExts.Text.ParseExtensions()))
+                            {
+                                if (file.EndsWith(".aes"))
+                                {
+                                    try
+                                    {
+                                        await file.DecryptFileAsync(txtPassword.Text);
+                                        this.Log(file + " Decrypted.");
+                                        count++;
+
+                                        if (chkDeleteOrg.Checked)
+                                            File.Delete(file);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        this.Log(file + " " + ex.Message);
+                                        if(File.Exists(file.RemoveExtension()))
+                                            File.Delete(file.RemoveExtension());
+                                    }
+                                }
+
+                            }
+                            else
+                            {
+                                this.Log(file + " Ignored.");
+                            }
+                        }
+
+
+                    }
+
+
+                }
+            }
+
+            this.Log($"Finished : {count} File(s) Decrypted.");
+        }
+
+        private void lblInfo_Click(object sender, EventArgs e)
+        {
+            Process.Start("CotoSoft Inc.");
+        }
+
+        private void lstPaths_DragDrop(object sender, DragEventArgs e)
+        {
+            var fileList = e.Data.GetData(DataFormats.FileDrop, false);
+
+            var paths = fileList as IEnumerable<string>;
+            if (paths != null)
+                foreach (var path in paths)
+                {
+                    lstPaths.Items.Add(path);
+                }
+        }
+
+        private void lstPaths_DragEnter(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                e.Effect = DragDropEffects.Copy;
+            else
+                e.Effect = DragDropEffects.None;
+        }
+    }
+}
